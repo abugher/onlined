@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# Designate interfaces to be controlled by onlined.
+#
+# Check connectivity.
+# - Determine subnet.
+# - Passively monitor traffic.  (Binary presence.)
+# - Distinguish LAN from off-LAN traffic.  Destination / source must not share this subnet.
+# Establish connectivity.
+# - Enumerate wired vs wireless interfaces.
+# - For each wired:
+#   - Check carrier status.
+#   - If wired, attempt DHCP.
+# - For each wireless:
+#   - Scan for networks.
+#   - For each network name:
+#     - Grep for name in interfaces.d/ .
+#     - Try each network with this name.  (wireless-ap, wireless-accesspoint, or wpa-essid)
+#     - Remember a file could technically contain more than one network definition.
+#
+# ... a little bitta input checking might not hurt.
+
+
+function main {
+  get_range
+}
+
+
+function dec_to_bin {
+  printf "%08d\n" "$(
+    bc <<< "ibase=10; obase=2; ${1}"
+  )"
+}
+
+
+function bin_to_dec {
+  echo "$((2#$1))"
+}
+
+
+function get_address {
+    ip addr show dev wlan0 \
+    | awk '/^    inet / {print $2}' \
+    | sed 's/\// /' \
+    | awk '{print $1}'
+}
+
+
+function get_mask {
+    ip addr show dev wlan0 \
+    | awk '/^    inet / {print $2}' \
+    | sed 's/\// /' \
+    | awk '{print $2}'
+}
+
+
+function get_range {
+  address_dec_string="$(get_address)"
+  mask_dec_string="$(get_mask)"
+
+  read -a address_octets <<< "$(sed 's/\./ /g' <<< "${address_dec_string}")"
+  address_bits_string=
+  for octet_dec_string in "${address_octets[@]}"; do
+    octet_bits_string="$(dec_to_bin "${octet_dec_string}")"
+    address_bits_string+="${octet_bits_string}"
+  done
+
+  unset address_bits_array
+  read -a address_bits_array <<< "$(echo $(grep -o . <<< "${address_bits_string}"))"
+  unset network_bits_array
+  for i in {0..31}; do
+    network_bits_array[i]=0
+  done
+  for ((i=0; i<mask_dec_string; i++)); do
+    network_bits_array[i]="${address_bits_array[i]}"
+  done
+
+  unset range_bottom_bits_array
+  for ((i=0; i<31; i++)); do
+    range_bottom_bits_array[i]="${network_bits_array[i]}"
+  done
+  range_bottom_bits_array[31]=1
+  unset range_top_bits_array
+  for ((i=0; i<31; i++)); do
+    range_top_bits_array[i]="${network_bits_array[i]}"
+  done
+  for ((i=mask_dec_string; i<31; i++)); do
+    range_top_bits_array[i]=1
+  done
+  range_top_bits_array[31]=0
+
+  range_bottom_dec_string=
+  for ((i=0; i<25; i+=8)); do
+    octet_bits_string=
+    for bit in "${range_bottom_bits_array[@]:i:8}"; do
+      octet_bits_string+=$bit
+    done
+    octet_dec_string="$(bin_to_dec "${octet_bits_string}")"
+    range_bottom_dec_string+="${octet_dec_string}"
+    range_bottom_dec_string+='.'
+  done
+  range_bottom_dec_string="$(sed 's/\.$//' <<< "${range_bottom_dec_string}")"
+
+  range_top_dec_string=
+  for ((i=0; i<25; i+=8)); do
+    octet_bits_string=
+    for bit in "${range_top_bits_array[@]:i:8}"; do
+      octet_bits_string+=$bit
+    done
+    octet_dec_string="$(bin_to_dec "${octet_bits_string}")"
+    range_top_dec_string+="${octet_dec_string}"
+    range_top_dec_string+='.'
+  done
+  range_top_dec_string="$(sed 's/\.$//' <<< "${range_top_dec_string}")"
+
+  echo "${range_bottom_dec_string}"
+  echo "${range_top_dec_string}"
+}
+
+
+main
