@@ -22,7 +22,16 @@
 
 
 function main {
-  get_range
+  check_online
+}
+
+
+function check_online {
+  address_dec_string=$(get_address)
+  read range_bottom_dec_string range_top_dec_string <<< "$(get_range "${address_dec_string}")"
+#  printf "Address:         %s\n" "${address_dec_string}"
+#  printf "Bottom of range: %s\n" "${range_bottom_dec_string}"
+#  printf "Top of range:    %s\n" "${range_top_dec_string}"
 }
 
 
@@ -55,7 +64,7 @@ function get_mask {
 
 
 function get_range {
-  address_dec_string="$(get_address)"
+  address_dec_string="${1}"
   mask_dec_string="$(get_mask)"
 
   read -a address_octets <<< "$(sed 's/\./ /g' <<< "${address_dec_string}")"
@@ -113,8 +122,7 @@ function get_range {
   done
   range_top_dec_string="$(sed 's/\.$//' <<< "${range_top_dec_string}")"
 
-  echo "${range_bottom_dec_string}"
-  echo "${range_top_dec_string}"
+  echo "${range_bottom_dec_string} ${range_top_dec_string}"
 }
 
 
