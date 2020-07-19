@@ -22,17 +22,23 @@
 
 
 function main {
-  check_online
+  address="$(get_address)"
+  read -a range <<< $(get_range "${address}")
+#  for a in "${range[@]}"; do
+#    echo "'${a}'"
+#  done
+  check_online "${range[@]}"
+  #address_dec_to_bin 192.168.11.1
 }
 
 
-function check_online {
-  address_dec_string=$(get_address)
-  read range_bottom_dec_string range_top_dec_string <<< "$(get_range "${address_dec_string}")"
-#  printf "Address:         %s\n" "${address_dec_string}"
-#  printf "Bottom of range: %s\n" "${range_bottom_dec_string}"
-#  printf "Top of range:    %s\n" "${range_top_dec_string}"
-}
+#function check_online {
+#  address_dec_string=$(get_address)
+#  read range_bottom_dec_string range_top_dec_string <<< "$(get_range "${address_dec_string}")"
+##  printf "Address:         %s\n" "${address_dec_string}"
+##  printf "Bottom of range: %s\n" "${range_bottom_dec_string}"
+##  printf "Top of range:    %s\n" "${range_top_dec_string}"
+#}
 
 
 function dec_to_bin {
@@ -68,43 +74,43 @@ function get_range {
   mask_dec_string="$(get_mask)"
 
   read -a address_octets <<< "$(sed 's/\./ /g' <<< "${address_dec_string}")"
-  address_bits_string=
+  address_bin_string=
   for octet_dec_string in "${address_octets[@]}"; do
-    octet_bits_string="$(dec_to_bin "${octet_dec_string}")"
-    address_bits_string+="${octet_bits_string}"
+    octet_bin_string="$(dec_to_bin "${octet_dec_string}")"
+    address_bin_string+="${octet_bin_string}"
   done
 
-  unset address_bits_array
-  read -a address_bits_array <<< "$(echo $(grep -o . <<< "${address_bits_string}"))"
-  unset network_bits_array
+  unset address_bin_array
+  read -a address_bin_array <<< "$(echo $(grep -o . <<< "${address_bin_string}"))"
+  unset network_bin_array
   for i in {0..31}; do
-    network_bits_array[i]=0
+    network_bin_array[i]=0
   done
   for ((i=0; i<mask_dec_string; i++)); do
-    network_bits_array[i]="${address_bits_array[i]}"
+    network_bin_array[i]="${address_bin_array[i]}"
   done
 
-  unset range_bottom_bits_array
+  unset range_bottom_bin_array
   for ((i=0; i<31; i++)); do
-    range_bottom_bits_array[i]="${network_bits_array[i]}"
+    range_bottom_bin_array[i]="${network_bin_array[i]}"
   done
-  range_bottom_bits_array[31]=1
-  unset range_top_bits_array
+  range_bottom_bin_array[31]=1
+  unset range_top_bin_array
   for ((i=0; i<31; i++)); do
-    range_top_bits_array[i]="${network_bits_array[i]}"
+    range_top_bin_array[i]="${network_bin_array[i]}"
   done
   for ((i=mask_dec_string; i<31; i++)); do
-    range_top_bits_array[i]=1
+    range_top_bin_array[i]=1
   done
-  range_top_bits_array[31]=0
+  range_top_bin_array[31]=0
 
   range_bottom_dec_string=
   for ((i=0; i<25; i+=8)); do
-    octet_bits_string=
-    for bit in "${range_bottom_bits_array[@]:i:8}"; do
-      octet_bits_string+=$bit
+    octet_bin_string=
+    for bit in "${range_bottom_bin_array[@]:i:8}"; do
+      octet_bin_string+=$bit
     done
-    octet_dec_string="$(bin_to_dec "${octet_bits_string}")"
+    octet_dec_string="$(bin_to_dec "${octet_bin_string}")"
     range_bottom_dec_string+="${octet_dec_string}"
     range_bottom_dec_string+='.'
   done
@@ -112,17 +118,68 @@ function get_range {
 
   range_top_dec_string=
   for ((i=0; i<25; i+=8)); do
-    octet_bits_string=
-    for bit in "${range_top_bits_array[@]:i:8}"; do
-      octet_bits_string+=$bit
+    octet_bin_string=
+    for bit in "${range_top_bin_array[@]:i:8}"; do
+      octet_bin_string+=$bit
     done
-    octet_dec_string="$(bin_to_dec "${octet_bits_string}")"
+    octet_dec_string="$(bin_to_dec "${octet_bin_string}")"
     range_top_dec_string+="${octet_dec_string}"
     range_top_dec_string+='.'
   done
   range_top_dec_string="$(sed 's/\.$//' <<< "${range_top_dec_string}")"
 
   echo "${range_bottom_dec_string} ${range_top_dec_string}"
+}
+
+
+function  address_dec_to_bin {
+  address="${1}"
+  read -a octets_dec_string <<< $(awk -F '[ .]' '{print $1" "$2" "$3" "$4}' <<< "${address}")
+  octets=()
+  read -a octets_bin_string <<< $(
+    echo $(
+      for octet_dec_string in "${octets_dec_string[@]}"; do
+        dec_to_bin "${octet_dec_string}"
+      done
+    )
+  )
+  address_bin_string=
+  for octet_bin_string in "${octets_bin_string[@]}"; do
+    address_bin_string+="${octet_bin_string}"
+  done
+  echo "${address_bin_string}"
+}
+
+
+function check_online {
+  range_bottom_dec_string="${1}"
+  range_top_dec_string="${2}"
+  range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"
+  range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")"
+
+  # timeout makes sub-scope.  Make it return false on success, flip that value and return from the function.  This is stupid.
+  timeout 10 tcpdump -n 2>~/tmp/errors.txt \
+  | grep -E '[^ ]+[[:space:]]+IP' \
+  | while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
+
+    src_address_dec_string="$(sed 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
+    dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
+    src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"
+    dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"
+
+    if test "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))"; then
+      return 1
+    fi
+    if test "$((2#$src_address_bin_string))" -gt "$((2#$range_top_bin_string))"; then
+      return 1
+    fi
+  done
+  if test $? -eq 0; then
+    return 1
+  else
+    return 0
+  fi
+  
 }
 
 
