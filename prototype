@@ -1,44 +1,16 @@
 #!/bin/bash
 
-# Designate interfaces to be controlled by onlined.
-#
-# Check connectivity.
-# - Determine subnet.
-# - Passively monitor traffic.  (Binary presence.)
-# - Distinguish LAN from off-LAN traffic.  Destination / source must not share this subnet.
-# Establish connectivity.
-# - Enumerate wired vs wireless interfaces.
-# - For each wired:
-#   - Check carrier status.
-#   - If wired, attempt DHCP.
-# - For each wireless:
-#   - Scan for networks.
-#   - For each network name:
-#     - Grep for name in interfaces.d/ .
-#     - Try each network with this name.  (wireless-ap, wireless-accesspoint, or wpa-essid)
-#     - Remember a file could technically contain more than one network definition.
-#
-# ... a little bitta input checking might not hurt.
+# Set one wireless interface to try to use.  For every definition in
+# /etc/network/interfaces.d/*, if the name of the spec is the name of a wifi
+# network in range, try:  ifup "${wifi_interface}"="${spec}"
+#wifi_interface=wlan0
+wifi_interface=wlan2
+sniff_secs=10
 
 
 function main {
-  address="$(get_address)"
-  read -a range <<< $(get_range "${address}")
-#  for a in "${range[@]}"; do
-#    echo "'${a}'"
-#  done
-  check_online "${range[@]}"
-  #address_dec_to_bin 192.168.11.1
+  check_online_passive
 }
-
-
-#function check_online {
-#  address_dec_string=$(get_address)
-#  read range_bottom_dec_string range_top_dec_string <<< "$(get_range "${address_dec_string}")"
-##  printf "Address:         %s\n" "${address_dec_string}"
-##  printf "Bottom of range: %s\n" "${range_bottom_dec_string}"
-##  printf "Top of range:    %s\n" "${range_top_dec_string}"
-#}
 
 
 function dec_to_bin {
@@ -53,25 +25,22 @@ function bin_to_dec {
 }
 
 
-function get_address {
-    ip addr show dev wlan0 \
-    | awk '/^    inet / {print $2}' \
-    | sed 's/\// /' \
-    | awk '{print $1}'
+function get_active_interface {
+  ip route | awk '/default/ {print $5}' | grep .
 }
 
 
-function get_mask {
-    ip addr show dev wlan0 \
+function get_address_and_mask {
+    ip addr show dev "${1}" \
     | awk '/^    inet / {print $2}' \
     | sed 's/\// /' \
-    | awk '{print $2}'
+    | awk '{print $1" "$2}'
 }
 
 
 function get_range {
   address_dec_string="${1}"
-  mask_dec_string="$(get_mask)"
+  mask_dec_string="${2}"
 
   read -a address_octets <<< "$(sed 's/\./ /g' <<< "${address_dec_string}")"
   address_bin_string=
@@ -151,14 +120,15 @@ function  address_dec_to_bin {
 }
 
 
-function check_online {
-  range_bottom_dec_string="${1}"
-  range_top_dec_string="${2}"
+function check_online_passive {
+  active_interface="$(get_active_interface)" \
+  || return 1
+  read -a range_bottom_dec_string range_top_dec_string <<< $(get_range $(get_address_and_mask "${active_interface}"))
   range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"
   range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")"
 
   # timeout makes sub-scope.  Make it return false on success, flip that value and return from the function.  This is stupid.
-  timeout 10 tcpdump -n 2>~/tmp/errors.txt \
+  timeout "${sniff_secs}" tcpdump -i "${active_interface}" -n 2>~/tmp/errors.txt \
   | grep -E '[^ ]+[[:space:]]+IP' \
   | while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
 
@@ -179,7 +149,6 @@ function check_online {
   else
     return 0
   fi
-  
 }
 
 
