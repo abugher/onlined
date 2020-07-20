@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Set one wireless interface to try to use.  For every definition in
-# /etc/network/interfaces.d/*, if the name of the spec is the name of a wifi
-# network in range, try:  ifup "${wifi_interface}"="${spec}"
 #wifi_interface=wlan0
 wifi_interface=wlan2
 sniff_secs=10
+sleep_secs=60
 skip_interfaces=( lo )
 
 
 function main {
-  refresh
+  while sleep "${sleep_secs}"; do
+    check_online || refresh
+  done
 }
 
 

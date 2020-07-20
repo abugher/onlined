@@ -1,5 +1,3 @@
-Checking online status:  There are few ways to do this.  "Online" is vague.
-
 - Main loop:
   x Check online status.
     - Check connectivity to a specific address.
