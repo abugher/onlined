@@ -1,0 +1,13 @@
+Depends:
+
+  - iproute2
+  - ifupdown
+
+Assumptions:
+
+  - All desirable network configurations are specified in Debian's ifupdown
+    system.  (/etc/network/interfaces and /etc/network/interfaces.d/*)
+  - Each desirable wired interface name is the name of an appropriate
+    specification.
+  - Each desirable wireless network name is the name of an appropriate
+    specification.
