@@ -6,10 +6,50 @@
 #wifi_interface=wlan0
 wifi_interface=wlan2
 sniff_secs=10
+skip_interfaces=( lo )
 
 
 function main {
-  check_online_passive
+  refresh
+}
+
+
+function refresh {
+  read -a interfaces <<< $(get_interfaces)
+  read -a spec_names <<< $(get_spec_names)
+
+  ifdown "${interfaces[@]}"
+
+  for spec_name in "${spec_names[@]}"; do
+    for interface in "${interfaces[@]}"; do
+      if test "${spec_name}" == "${interface}"; then
+        if ifup "${interface}" && check_online; then
+          return 0
+        else
+          ifdown "${interface}"
+        fi
+      fi
+    done
+  done
+
+  wifi_names=()
+  while read wifi_name; do
+    wifi_names+=( "${wifi_name}" )
+  done <<< $(get_wifi_names)
+
+  for spec_name in "${spec_names[@]}"; do
+    for wifi_name in "${wifi_names[@]}"; do
+      if test "${spec_name}" == "${wifi_name}"; then
+        if ifup "${wifi_interface}=${spec_name}" && check_online; then
+          return 0
+        else
+          ifdown "${wifi_interface}"
+        fi
+      fi
+    done
+  done
+
+  return 1
 }
 
 
@@ -27,6 +67,27 @@ function bin_to_dec {
 
 function get_active_interface {
   ip route | awk '/default/ {print $5}' | grep .
+}
+
+
+function get_interfaces {
+  skip_interfaces_regex=
+  for interface in "${skip_interfaces}"; do
+    skip_interfaces_regex+="${interface}|"
+  done
+  skip_interfaces_regex="$(sed 's/|$//' <<< "${skip_interfaces_regex}")"
+  echo $(ip link | awk '/^[0-9]+: / {print $2}' | sed 's/:$//' | grep -Ev "^${skip_interfaces_regex}")
+}
+
+
+function get_spec_names {
+  echo $(awk '/iface/ {print $2}' /etc/network/interfaces{,.d/*})
+}
+
+
+function get_wifi_names {
+  ip link set "${wifi_interface}" up
+  iwlist "${wifi_interface}" scan | awk -F '[:"]' '/^ *ESSID:/ {print $3}'
 }
 
 
@@ -117,6 +178,11 @@ function  address_dec_to_bin {
     address_bin_string+="${octet_bin_string}"
   done
   echo "${address_bin_string}"
+}
+
+
+function check_online {
+  check_online_passive
 }
 
 
