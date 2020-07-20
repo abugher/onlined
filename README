@@ -1,20 +1,32 @@
 Checking online status:  There are few ways to do this.  "Online" is vague.
 
-- Check connectivity to a specific address.
-  - Requires sending traffic.
-  - Announces presence to that address.
-  - Announces an identifying quirk to the LAN.
-- Watch traffic.
-  - Outbound packets mean we're trying.
-  - Inbound packets mean we're online.
-  - Lack of traffic could mean offline, or could mean calm.
-    - Maybe require one of a few constant traffic generators, like NTP.
-  - Watch for traffic routed through the default gateway.
-  - Watch for traffic not matching any routing rule, other than default gateway.  (...a method for above, I guess.)
-    - Elegant.
-    - Gonna take a minute to code.
-  - Watch for traffic not to this subnet.
-    - Assumes that "the LAN" consists of one subnet.
-    - Most of the code is written.
-    - This seems like the way to prototype, then maybe graduate to matching against all routing rules.
-    - More than one subnet accessible by the same machine implies the machine is a router.  That's not my use case.
+x Check online status.
+  - Check connectivity to a specific address.
+    - Requires sending traffic.
+    - Announces presence to that address.
+    - Announces an identifying quirk to the LAN.
+  x Watch traffic.
+    - Outbound packets mean we're trying.
+    - Inbound packets mean we're online.
+    - Lack of traffic could mean offline, or could mean calm.
+      - Maybe require one of a few constant traffic generators, like NTP.
+    - Watch for traffic routed through the default gateway.
+    - Watch for traffic not matching any routing rule, other than default gateway.  (...a method for above, I guess.)
+      - Elegant.
+      - Gonna take a minute to code.
+    x Watch for traffic not to this subnet.
+      - Assumes that "the LAN" consists of one subnet.
+      - Most of the code is written.
+      - This seems like the way to prototype, then maybe graduate to matching against all routing rules.
+      - More than one subnet accessible by the same machine implies the machine is a router.  That's not my use case.
+      - By some definition of "internet", if you can push traffic outside of the subnet, you have internet.
+- Get online.
+  - Read interface spec names from ifupdown configuration.
+  - Bring down all interfaces except lo.
+  - For each spec name:
+    - If it is the name of an interface:  
+        ifup $spec_name && return || ifdown [..]
+  - For each spec name:
+    - If it is the name of a wifi network in range:
+        ifup "${wifi_interface}=${spec_name}" && return || return [...]
+- Sleep, I guess.
