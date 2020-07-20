@@ -5,16 +5,29 @@ wifi_interface=wlan2
 sniff_secs=10
 sleep_secs=60
 skip_interfaces=( lo )
+self_name="$(sed 's/^.*\///g' <<< "${0}")"
 
 
 function main {
-  while sleep "${sleep_secs}"; do
-    check_online || refresh
+  while true; do
+    date --iso-8601=sec
+    if check_online; then
+      output "Online!"
+    else
+      refresh
+    fi
+    sleep "${sleep_secs}"
   done
 }
 
 
+function output {
+  printf "%s:  %s\n" "${self_name}" "${1}"
+}
+
+
 function refresh {
+  output "Refreshing."
   read -a interfaces <<< $(get_interfaces)
   read -a spec_names <<< $(get_spec_names)
 
@@ -23,7 +36,9 @@ function refresh {
   for spec_name in "${spec_names[@]}"; do
     for interface in "${interfaces[@]}"; do
       if test "${spec_name}" == "${interface}"; then
+        output "Trying interface:  ${interface}"
         if ifup "${interface}" && check_online; then
+          output "Successfully brought up interface:  ${interface}"
           return 0
         else
           ifdown "${interface}"
@@ -40,7 +55,9 @@ function refresh {
   for spec_name in "${spec_names[@]}"; do
     for wifi_name in "${wifi_names[@]}"; do
       if test "${spec_name}" == "${wifi_name}"; then
+        output "Trying network:  ${wifi_name}"
         if ifup "${wifi_interface}=${spec_name}" && check_online; then
+          output "Successfully joined network:  ${wifi_name}"
           return 0
         else
           ifdown "${wifi_interface}"
@@ -49,7 +66,46 @@ function refresh {
     done
   done
 
+  output "Failed to refresh."
   return 1
+}
+
+
+function check_online_passive {
+  active_interface="$(get_active_interface)" \
+  || return 1
+  read -a range_bottom_dec_string range_top_dec_string <<< $(get_range $(get_address_and_mask "${active_interface}"))
+  range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"
+  range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")"
+
+  # timeout makes sub-scope.  Make it return false on success, flip that value and return from the function.  This is stupid.
+  output "Sniffing traffic on ${active_interface} for inbound packets from off-subnet."
+  timeout "${sniff_secs}" tcpdump -i "${active_interface}" -n 2>~/tmp/errors.txt \
+  | grep -E '[^ ]+[[:space:]]+IP' \
+  | while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
+
+    src_address_dec_string="$(sed 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
+    dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
+    src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"
+    dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"
+
+    if test "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))"; then
+      return 1
+    fi
+    if test "$((2#$src_address_bin_string))" -gt "$((2#$range_top_bin_string))"; then
+      return 1
+    fi
+  done
+  if test $? -eq 0; then
+    return 1
+  else
+    return 0
+  fi
+}
+
+
+function check_online {
+  check_online_passive
 }
 
 
@@ -178,43 +234,6 @@ function  address_dec_to_bin {
     address_bin_string+="${octet_bin_string}"
   done
   echo "${address_bin_string}"
-}
-
-
-function check_online {
-  check_online_passive
-}
-
-
-function check_online_passive {
-  active_interface="$(get_active_interface)" \
-  || return 1
-  read -a range_bottom_dec_string range_top_dec_string <<< $(get_range $(get_address_and_mask "${active_interface}"))
-  range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"
-  range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")"
-
-  # timeout makes sub-scope.  Make it return false on success, flip that value and return from the function.  This is stupid.
-  timeout "${sniff_secs}" tcpdump -i "${active_interface}" -n 2>~/tmp/errors.txt \
-  | grep -E '[^ ]+[[:space:]]+IP' \
-  | while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
-
-    src_address_dec_string="$(sed 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
-    dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
-    src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"
-    dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"
-
-    if test "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))"; then
-      return 1
-    fi
-    if test "$((2#$src_address_bin_string))" -gt "$((2#$range_top_bin_string))"; then
-      return 1
-    fi
-  done
-  if test $? -eq 0; then
-    return 1
-  else
-    return 0
-  fi
 }
 
 
