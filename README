@@ -1,3 +1,8 @@
+Description:
+
+  Stay online.  This is like network-manager, but extremely dependent on
+  ifupdown.
+  
 Depends:
 
   - iproute2
