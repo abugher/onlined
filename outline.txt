@@ -40,5 +40,14 @@ x Main loop:
           ifup "${wifi_interface}=${spec_name}" && return || return [...]
   x Sleep, I guess.
 
-- Drop privileges where reasonable.
 - Handle failures.
+  - My current error-catching style inflates the code a lot.
+  - It might actually make things more fragile, with extra code to
+    break, and deeper nesting of parentheses and quotes.
+  - Anticipate and handle errors when errors are likely.
+    - When parsing long output from a command (which could change in the
+      future).
+    - When calling a function containing failure handling, which will
+      return a false value.
+
+- Drop privileges where reasonable.
