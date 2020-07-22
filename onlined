@@ -131,12 +131,25 @@ function check_online_passive {
     | grep -E '[^ ]+[[:space:]]+IP' \
   )
 
+  # while read line; do check_for_inbound && break; check_for_outbound; done < <(timeout sniff | grep)
+  # if in and out; online
+  # if not in but out; offline
+  # if in but not out; online
+  # if not in and not out; offline
+
+
   return 1
 }
 
 
+function check_online_active {
+  ping -c 1 -w 1 -W 1 8.8.8.8
+}
+
+
 function check_online {
-  check_online_passive
+  # crude
+  check_online_passive || check_online_active
 }
 
 

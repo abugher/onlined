@@ -17,9 +17,9 @@ x Main loop:
         - States:
           - Outbound present, inbound missing:
             - Offline.  Connections (presumably) failing.
-          - Outbound present, inbound present:
+          x Outbound present, inbound present:
             - Online.
-          - Outbound absent, inbound present:
+          x Outbound absent, inbound present:
             - Online, although strangely quiet.
           - Outbound absent, inbound absent:
             - Unknown.
