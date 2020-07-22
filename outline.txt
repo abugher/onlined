@@ -28,13 +28,10 @@ x Main loop:
             - Maybe require a constant traffic generator, like NTP.
         - Assumes that "the LAN" consists of one subnet.
         - More than one subnet accessible by the same machine implies the machine is a router.  That's not my use case.
-  - Get online.
+  x Get online.
     x Read interface spec names from ifupdown configuration.
-    x Bring down all specified interfaces.
-    x Bring down wifi interface.
-    x Ignore other interfaces. 
-      - Polite.
-      - Conflicts could be annoying.
+    x Bring down all* interfaces.
+      - *Except lo.
     x For each spec name:
       - If it is the name of an interface:  
           ifup $spec_name && return || ifdown [..]
