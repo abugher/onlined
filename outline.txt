@@ -1,34 +1,47 @@
-- Main loop:
+x Main loop:
   x Check online status.
-    - Check connectivity to a specific address.
+    - Option:  Active check.
       - Requires sending traffic.
       - Announces presence to that address.
       - Announces an identifying quirk to the LAN.
-    x Watch traffic.
-      - Outbound packets mean we're trying.
-      - Inbound packets mean we're online.
-      - Lack of traffic could mean offline, or could mean calm.
-        - Maybe require one of a few constant traffic generators, like NTP.
-      - Watch for traffic routed through the default gateway.
+    x Option:  Passive check.
       - Watch for traffic not matching any routing rule, other than default gateway.  (...a method for above, I guess.)
         - Elegant.
-        - Gonna take a minute to code.
+        - Option:  Parse the routing rules.
+          - No.
+        - Option:  Ask the kernel.
+          - This might require an iptables rule to log any traffic being
+            routed through the default gateway.
+          - Might need to exclude traffic directly TO the gateway.
       x Watch for traffic not to this subnet.
+        - States:
+          - Outbound present, inbound missing:
+            - Offline.  Connections (presumably) failing.
+          - Outbound present, inbound present:
+            - Online.
+          - Outbound absent, inbound present:
+            - Online, although strangely quiet.
+          - Outbound absent, inbound absent:
+            - Unknown.
+            - Could be offline.
+            - Could just be quiet.
+            - Maybe require a constant traffic generator, like NTP.
         - Assumes that "the LAN" consists of one subnet.
-        - Most of the code is written.
-        - This seems like the way to prototype, then maybe graduate to matching against all routing rules.
         - More than one subnet accessible by the same machine implies the machine is a router.  That's not my use case.
-        - By some definition of "internet", if you can push traffic outside of the subnet, you have internet.
   - Get online.
     x Read interface spec names from ifupdown configuration.
-    - Bring down all interfaces except lo.
-    - For each spec name:
+    x Bring down all specified interfaces.
+    x Bring down wifi interface.
+    x Ignore other interfaces. 
+      - Polite.
+      - Conflicts could be annoying.
+    x For each spec name:
       - If it is the name of an interface:  
           ifup $spec_name && return || ifdown [..]
-    - For each spec name:
+    x For each spec name:
       - If it is the name of a wifi network in range:
           ifup "${wifi_interface}=${spec_name}" && return || return [...]
-  - Sleep, I guess.
+  x Sleep, I guess.
 
 - Drop privileges where reasonable.
 - Handle failures.
