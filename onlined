@@ -6,6 +6,7 @@ sniff_secs=10
 sleep_secs=60
 skip_interfaces=( lo )
 self_name="$(sed 's/^.*\///g' <<< "${0}")"
+max_calm=5
 
 
 function main {
@@ -115,30 +116,35 @@ function check_online_passive {
 
   output "Watching ${active_interface} for ${sniff_secs}s for inbound internet traffic."
 
+  outbound_packets=0
   while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
     src_address_dec_string="$(sed 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
     dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
     src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"
     dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"
 
-    if test "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))"; then
+    if 
+      test    "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
+      || test "$((2#$src_address_bin_string))" -gt "$((2#$range_top_bin_string))"
+    then
       return 0
-    elif test "$((2#$src_address_bin_string))" -gt "$((2#$range_top_bin_string))"; then
-      return 0
+    elif
+      test    "$((2#$dst_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
+      || test "$((2#$dst_address_bin_string))" -gt "$((2#$range_top_bin_string))"
+    then
+      let outbound_packets++
     fi
+    
   done < <(
     timeout "${sniff_secs}" tcpdump -i "${active_interface}" -n \
     | grep -E '[^ ]+[[:space:]]+IP' \
   )
 
-  # while read line; do check_for_inbound && break; check_for_outbound; done < <(timeout sniff | grep)
-  # if in and out; online
-  # if not in but out; offline
-  # if in but not out; online
-  # if not in and not out; offline
-
-
-  return 1
+  if test $outbound_packets -gt 0; then
+    return 1
+  else
+    return 2
+  fi
 }
 
 
@@ -148,8 +154,22 @@ function check_online_active {
 
 
 function check_online {
-  # crude
-  check_online_passive || check_online_active
+  calm_count=0
+  while test $calm_count -lt $max_calm; do
+    check_online_passive 
+    case "${?}" in
+      0)
+        return 0
+        ;;
+      1)
+        return 1
+        ;;
+      2)
+        let calm_count++
+        ;;
+    esac
+  done
+  check_online_active
 }
 
 
