@@ -46,7 +46,7 @@ function output {
 
 
 function debug {
-  if test 'yes' == "${DEBUG:+yes}"; then
+  if test 'set' == "${DEBUG:+set}"; then
     printf "%s:  DEBUG:  %s\n" "${self_name}" "${1}"
   fi
 }
@@ -66,7 +66,7 @@ function try_spec {
   target="${1}"
   sleep "${sleep_secs_next}"
   output "Trying network spec:  ${target}"
-  if ifup "${target}" 2>/dev/null && check_online; then
+  if ifup "${target}" && check_online; then
     output "Successfully brought up network spec:  ${target}"
     return "${ret_pass}"
   fi
@@ -188,7 +188,7 @@ function check_online_passive {
     | grep -E '[^ ]+[[:space:]]+IP' \
   )
 
-  if test "${outbound_traffic}" -gt 0; then
+  if test 'set' == "${outbound_traffic:+set}"; then
     output "Unanswered outbound traffic detected."
     return "${ret_fail}"
   else
