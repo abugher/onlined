@@ -3,10 +3,16 @@
 #wifi_interface=wlan0
 wifi_interface=wlan2
 sniff_secs=10
-sleep_secs=60
+sleep_secs_online=60
+sleep_secs_retry=5
+sleep_secs_next=1
 skip_interfaces=( lo )
 self_name="$(sed 's/^.*\///g' <<< "${0}")"
-max_calm=5
+calm_count_max=5
+
+ret_pass=0
+ret_warn=1
+ret_fail=2
 
 
 function main {
@@ -17,13 +23,14 @@ function main {
       timestamp
       output "Status:  online."
     else
+      output "Status:  offline."
       while true; do 
         timestamp
-        output "Status:  offline."
         if refresh; then break; fi
+        sleep "${sleep_secs_retry}"
       done
     fi
-    sleep "${sleep_secs}"
+    sleep "${sleep_secs_online}"
   done
 }
 
@@ -38,6 +45,13 @@ function output {
 }
 
 
+function debug {
+  if test 'yes' == "${DEBUG:+yes}"; then
+    printf "%s:  DEBUG:  %s\n" "${self_name}" "${1}"
+  fi
+}
+
+
 function error {
   printf "%s:  ERROR:  %s\n" "${self_name}" "${1}" >&2
 }
@@ -48,127 +62,169 @@ function warn {
 }
 
 
+function try_spec {
+  target="${1}"
+  sleep "${sleep_secs_next}"
+  output "Trying network spec:  ${target}"
+  if ifup "${target}" 2>/dev/null && check_online; then
+    output "Successfully brought up network spec:  ${target}"
+    return "${ret_pass}"
+  fi
+  output "Failed to bring up network spec:  ${target}"
+  if ! ifdown "${target}"; then
+    error "Failed to bring down network spec:  ${target}"
+    return "${ret_fail}"
+  fi
+  return "${ret_warn}"
+}
+
+
 function refresh {
-  output "Refreshing."
+  output "Refreshing connection."
   read -a interfaces <<< $(get_interfaces)
   read -a spec_names <<< $(get_spec_names)
 
-  ifdown "${interfaces[@]}" || error "Failed to bring down interfaces:  ( ${interfaces[@]} )"
+  if ! ifdown "${interfaces[@]}"; then
+    error "Failed to bring down interfaces:  ( ${interfaces[@]} )"
+    return "${ret_fail}"
+  fi
 
+  output "Trying each specified interface."
   for spec_name in "${spec_names[@]}"; do
     for interface in "${interfaces[@]}"; do
       if test "${spec_name}" == "${interface}"; then
-        output "Trying interface:  ${interface}"
-        if ifup "${interface}" && check_online; then
-          output "Successfully brought up interface:  ${interface}"
-          return 0
-        else
-          #warn "Failed to bring up interface:  ${interface}"
-          ifdown "${interface}" || error "Failed to bring down interface:  ${wifi_interface}"
-        fi
+        try_spec "${spec_name}"
+        ret="${?}"
+        case "${ret}" in
+          "${ret_warn}")        continue        ;;
+          *)                    return "${ret}" ;;
+        esac
       fi
     done
   done
-  #warn "Failed to bring up any interface by name."
+  output "Failed to bring up any specified interface."
 
   wifi_names=()
   while read wifi_name; do
     wifi_names+=( "${wifi_name}" )
-  done <<< $(get_wifi_names)
+  done < <(get_wifi_names)
 
+  output "Trying specified wireless networks."
   for spec_name in "${spec_names[@]}"; do
     for wifi_name in "${wifi_names[@]}"; do
       if test "${spec_name}" == "${wifi_name}"; then
-        output "Trying wifi network:  ${wifi_name}"
-        if ifup "${wifi_interface}=${spec_name}" && check_online; then
-          output "Successfully joined wifi network:  ${wifi_name}"
-          return 0
-        else
-          warn "Failed to join wifi network:  ${wifi_name}"
-          ifdown "${wifi_interface}" || error "Failed to bring down interface:  ${wifi_interface}"
-        fi
+        try_spec "${wifi_interface}=${spec_name}"
+        ret="${?}"
+        case "${?}" in
+          "${ret_warn}")        continue        ;;
+          *)                    return "${ret}" ;;
+        esac
       fi
     done
   done
+  output "Failed to bring up any specified wireless network."
 
-  error "Failed to get online."
-  return 1
+  output "Failed to refresh connection."
+  return "${ret_fail}"
 }
 
 
 function check_online_passive {
+  output "Checking online status:  Passive check."
   if ! active_interface="$(get_active_interface)"; then
-    error "Failed to identify active interface."
-    return 1
+    error "Failed to identify an active interface."
+    return "${ret_fail}"
   fi
+  debug "active_interface='${active_interface}'"
 
   if ! address_and_mask="$(get_address_and_mask "${active_interface}")"; then
-    warn "Failed to get address and mask."
+    error "Failed to get address and mask."
+    return "${ret_fail}"
   fi
+  debug "address_and_mask='${address_and_mask}'"
 
-  if ! read -a range_bottom_dec_string range_top_dec_string <<< $(get_range ${address_and_mask}); then
+  read range_bottom_dec_string range_top_dec_string <<< $(get_range "${address_and_mask}")
+  ret="${?}"
+  debug "range_bottom_dec_string='${range_bottom_dec_string}'"
+  debug "range_top_dec_string='${range_top_dec_string}'"
+  if ! test "${ret}" -eq 0; then
     error "Failed to identify address range of local subnet."
-    return 1
+    return "${ret_fail}"
   fi
 
   range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"
   range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")"
+  debug "2#range_bottom_bin_string='$((2#$range_bottom_bin_string))'"
+  debug "2#range_top_bin_string='$((2#$range_top_bin_string))'"
 
   output "Watching ${active_interface} for ${sniff_secs}s for inbound internet traffic."
 
-  outbound_packets=0
+  unset outbound_traffic
   while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
-    src_address_dec_string="$(sed 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
+    src_address_dec_string="$(sed -E 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
     dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
+    debug "src_address_bin_string='${src_address_bin_string}'"
+    debug "dst_address_bin_string='${dst_address_bin_string}'"
     src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"
     dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"
+    debug "2#src_address_bin_string='$((2#$src_address_bin_string))'"
+    debug "2#dst_address_bin_string='$((2#$dst_address_bin_string))'"
 
     if 
       test    "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
       || test "$((2#$src_address_bin_string))" -gt "$((2#$range_top_bin_string))"
     then
-      return 0
+      output "Inbound traffic detected."
+      return "${ret_pass}"
     elif
       test    "$((2#$dst_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
       || test "$((2#$dst_address_bin_string))" -gt "$((2#$range_top_bin_string))"
     then
-      let outbound_packets++
+      let outbound_traffic=1
     fi
-    
   done < <(
-    timeout "${sniff_secs}" tcpdump -i "${active_interface}" -n \
+    timeout "${sniff_secs}" \
+    tcpdump -i "${active_interface}" -n 2>/dev/null \
     | grep -E '[^ ]+[[:space:]]+IP' \
   )
 
-  if test $outbound_packets -gt 0; then
-    return 1
+  if test "${outbound_traffic}" -gt 0; then
+    output "Unanswered outbound traffic detected."
+    return "${ret_fail}"
   else
-    return 2
+    output "No traffic detected."
+    return "${ret_warn}"
   fi
 }
 
 
 function check_online_active {
-  ping -c 1 -w 1 -W 1 8.8.8.8
+  output "Checking online status:  Active check."
+  if ping -c 1 -w 1 -W 1 8.8.8.8; then
+    output "Checking online status:  Active check:  pass"
+    return "${ret_pass}"
+  else
+    output "Checking online status:  Active check:  fail"
+    return "${ret_fail}"
+  fi
 }
 
 
 function check_online {
+  output "Checking online status."
+
   calm_count=0
-  while test $calm_count -lt $max_calm; do
+  while test "${calm_count}" -lt "${calm_count_max}"; do
+    debug "calm_count='${calm_count}'; calm_count_max='${calm_count_max}'"
     check_online_passive 
-    case "${?}" in
-      0)
-        return 0
-        ;;
-      1)
-        return 1
-        ;;
-      2)
-        let calm_count++
-        ;;
+    ret="${?}"
+    debug "check_online_passive returned:  '${ret}'"
+    case "${ret}" in
+      "${ret_warn}") let calm_count++   ;;
+      *) return "${ret}"                ;;
     esac
   done
+
   check_online_active
 }
 
