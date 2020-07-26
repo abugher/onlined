@@ -16,3 +16,4 @@ Assumptions:
     specification.
   - Each desirable wireless network name is the name of an appropriate
     specification.
+  - Only ipv4 is in use.
