@@ -18,15 +18,13 @@ self_name="$(sed 's/^.*\///g' <<< "${0}")"
 
 
 function main {
-  timestamp
-
   while true; do
     if check_online; then
-      timestamp
       output "Status:  online."
+      timestamp
     else
-      output "Status:  offline."
       while true; do 
+        output "Status:  offline."
         timestamp
         if refresh; then break; fi
         sleep "${sleep_secs_retry}"
