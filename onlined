@@ -47,7 +47,7 @@ function refresh {
     return "${ret_fail}"
   fi
 
-  output "Trying each specified interface."
+  debug "Trying each specified interface."
   for spec_name in "${spec_names[@]}"; do
     for interface in "${interfaces[@]}"; do
       if test "${spec_name}" == "${interface}"; then
@@ -60,14 +60,14 @@ function refresh {
       fi
     done
   done
-  output "Failed to bring up any specified interface."
+  debug "Failed to bring up any specified interface."
 
   wifi_names=()
   while read wifi_name; do
     wifi_names+=( "${wifi_name}" )
   done < <(get_wifi_names)
 
-  output "Trying specified wireless networks."
+  debug "Trying specified wireless networks."
   for spec_name in "${spec_names[@]}"; do
     for wifi_name in "${wifi_names[@]}"; do
       if test "${spec_name}" == "${wifi_name}"; then
@@ -80,7 +80,7 @@ function refresh {
       fi
     done
   done
-  output "Failed to bring up any specified wireless network."
+  debug "Failed to bring up any specified wireless network."
 
   output "Failed to refresh connection."
   return "${ret_fail}"
@@ -105,7 +105,7 @@ function try_spec {
 
 
 function check_online {
-  output "Checking online status."
+  debug "Checking online status."
 
   calm_count=0
   while test "${calm_count}" -lt "${calm_count_max}"; do
@@ -124,7 +124,7 @@ function check_online {
 
 
 function check_online_passive {
-  output "Checking online status:  Passive check."
+  debug "Checking online status:  Passive check."
   if ! active_interface="$(get_active_interface)"; then
     error "Failed to identify an active interface."
     return "${ret_fail}"
@@ -152,7 +152,7 @@ function check_online_passive {
   debug "2#range_bottom_bin_string='$((2#$range_bottom_bin_string))'"
   debug "2#range_top_bin_string='$((2#$range_top_bin_string))'"
 
-  output "Watching ${active_interface} for ${sniff_secs}s for inbound internet traffic."
+  debug "Watching ${active_interface} for ${sniff_secs}s for inbound internet traffic."
 
   unset outbound_traffic
   while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
@@ -168,7 +168,7 @@ function check_online_passive {
       test    "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
       || test "$((2#$src_address_bin_string))" -gt "$((2#$range_top_bin_string))"
     then
-      output "Inbound traffic detected."
+      debug "Inbound traffic detected."
       return "${ret_pass}"
     elif
       test    "$((2#$dst_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
@@ -184,22 +184,22 @@ function check_online_passive {
   )
 
   if test 'set' == "${outbound_traffic:+set}"; then
-    output "Unanswered outbound traffic detected."
+    debug "Unanswered outbound traffic detected."
     return "${ret_fail}"
   else
-    output "No traffic detected."
+    debug "No traffic detected."
     return "${ret_warn}"
   fi
 }
 
 
 function check_online_active {
-  output "Checking online status:  Active check."
+  debug "Checking online status:  Active check."
   if ping -c 1 -w 1 -W 1 8.8.8.8; then
-    output "Checking online status:  Active check:  pass"
+    debug "Checking online status:  Active check:  pass"
     return "${ret_pass}"
   else
-    output "Checking online status:  Active check:  fail"
+    debug "Checking online status:  Active check:  fail"
     return "${ret_fail}"
   fi
 }
