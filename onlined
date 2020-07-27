@@ -35,50 +35,6 @@ function main {
 }
 
 
-function timestamp {
-  output "$(date --iso-8601=sec)"
-}
-
-
-function output {
-  printf "%s:  %s\n" "${self_name}" "${1}"
-}
-
-
-function debug {
-  if test 'set' == "${DEBUG:+set}"; then
-    printf "%s:  DEBUG:  %s\n" "${self_name}" "${1}"
-  fi
-}
-
-
-function error {
-  printf "%s:  ERROR:  %s\n" "${self_name}" "${1}" >&2
-}
-
-
-function warn {
-  printf "%s:  WARNING :  %s\n" "${self_name}" "${1}" >&2
-}
-
-
-function try_spec {
-  target="${1}"
-  sleep "${sleep_secs_next}"
-  output "Trying network spec:  ${target}"
-  if ifup "${target}" && check_online; then
-    output "Successfully brought up network spec:  ${target}"
-    return "${ret_pass}"
-  fi
-  output "Failed to bring up network spec:  ${target}"
-  if ! ifdown "${target}"; then
-    error "Failed to bring down network spec:  ${target}"
-    return "${ret_fail}"
-  fi
-  return "${ret_warn}"
-}
-
-
 function refresh {
   output "Refreshing connection."
   read -a interfaces <<< $(get_interfaces)
@@ -126,6 +82,42 @@ function refresh {
 
   output "Failed to refresh connection."
   return "${ret_fail}"
+}
+
+
+function try_spec {
+  target="${1}"
+  sleep "${sleep_secs_next}"
+  output "Trying network spec:  ${target}"
+  if ifup "${target}" && check_online; then
+    output "Successfully brought up network spec:  ${target}"
+    return "${ret_pass}"
+  fi
+  output "Failed to bring up network spec:  ${target}"
+  if ! ifdown "${target}"; then
+    error "Failed to bring down network spec:  ${target}"
+    return "${ret_fail}"
+  fi
+  return "${ret_warn}"
+}
+
+
+function check_online {
+  output "Checking online status."
+
+  calm_count=0
+  while test "${calm_count}" -lt "${calm_count_max}"; do
+    debug "calm_count='${calm_count}'; calm_count_max='${calm_count_max}'"
+    check_online_passive 
+    ret="${?}"
+    debug "check_online_passive returned:  '${ret}'"
+    case "${ret}" in
+      "${ret_warn}") let calm_count++   ;;
+      *) return "${ret}"                ;;
+    esac
+  done
+
+  check_online_active
 }
 
 
@@ -211,37 +203,6 @@ function check_online_active {
 }
 
 
-function check_online {
-  output "Checking online status."
-
-  calm_count=0
-  while test "${calm_count}" -lt "${calm_count_max}"; do
-    debug "calm_count='${calm_count}'; calm_count_max='${calm_count_max}'"
-    check_online_passive 
-    ret="${?}"
-    debug "check_online_passive returned:  '${ret}'"
-    case "${ret}" in
-      "${ret_warn}") let calm_count++   ;;
-      *) return "${ret}"                ;;
-    esac
-  done
-
-  check_online_active
-}
-
-
-function dec_to_bin {
-  printf "%08d\n" "$(
-    bc <<< "ibase=10; obase=2; ${1}"
-  )"
-}
-
-
-function bin_to_dec {
-  echo "$((2#$1))"
-}
-
-
 function get_active_interface {
   if ! route_list="$(ip route)"; then
     error "Failed to list routes."
@@ -271,17 +232,6 @@ function get_interfaces {
 }
 
 
-function get_spec_names {
-  if ! spec_list="$(cat /etc/network/interfaces{,.d/*})"; then
-    error "Failed to read network specification list(s)."
-    return 1
-  fi
-  spec_list="$(awk '/iface/ {print $2}' <<< "${spec_list}")"
-  # No quotes.
-  echo ${spec_list}
-}
-
-
 function get_wifi_names {
   if ! ip link set "${wifi_interface}" up; then
     warn "Failed to mark interface as up:  ${wifi_interface}"
@@ -293,6 +243,17 @@ function get_wifi_names {
   fi
   # Wifi names can have spaces; leave them on separate lines.
   awk -F '[:"]' '/^ *ESSID:/ {print $3}' <<< "${wifi_list}"
+}
+
+
+function get_spec_names {
+  if ! spec_list="$(cat /etc/network/interfaces{,.d/*})"; then
+    error "Failed to read network specification list(s)."
+    return 1
+  fi
+  spec_list="$(awk '/iface/ {print $2}' <<< "${spec_list}")"
+  # No quotes.
+  echo ${spec_list}
 }
 
 
@@ -370,7 +331,7 @@ function get_range {
 }
 
 
-function  address_dec_to_bin {
+function address_dec_to_bin {
   address="${1}"
   read -a octets_dec_string <<< $(awk -F '[ .]' '{print $1" "$2" "$3" "$4}' <<< "${address}")
   octets=()
@@ -386,6 +347,45 @@ function  address_dec_to_bin {
     address_bin_string+="${octet_bin_string}"
   done
   echo "${address_bin_string}"
+}
+
+
+function dec_to_bin {
+  printf "%08d\n" "$(
+    bc <<< "ibase=10; obase=2; ${1}"
+  )"
+}
+
+
+function bin_to_dec {
+  echo "$((2#$1))"
+}
+
+
+function output {
+  printf "%s:  %s\n" "${self_name}" "${1}"
+}
+
+
+function debug {
+  if test 'set' == "${DEBUG:+set}"; then
+    printf "%s:  DEBUG:  %s\n" "${self_name}" "${1}"
+  fi
+}
+
+
+function warn {
+  printf "%s:  WARNING :  %s\n" "${self_name}" "${1}" >&2
+}
+
+
+function error {
+  printf "%s:  ERROR:  %s\n" "${self_name}" "${1}" >&2
+}
+
+
+function timestamp {
+  output "$(date --iso-8601=sec)"
 }
 
 
