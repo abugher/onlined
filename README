@@ -1,7 +1,6 @@
 Description:
 
-  Stay online.  This is like network-manager, but extremely dependent on
-  ifupdown.
+  Stay online.  Use ifupdown configuration.
   
 Depends:
 
@@ -17,3 +16,9 @@ Assumptions:
   - Each desirable wireless network name is the name of an appropriate
     specification.
   - Only ipv4 is in use.
+
+Features:
+
+  - Continually polices online status.
+  - Checks status by observing traffic.
+  - Sends probes only when there is no other traffic.
