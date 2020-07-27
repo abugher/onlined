@@ -2,17 +2,19 @@
 
 #wifi_interface=wlan0
 wifi_interface=wlan2
-sniff_secs=10
+skip_interfaces=( lo )
+
 sleep_secs_online=60
 sleep_secs_retry=5
 sleep_secs_next=1
-skip_interfaces=( lo )
-self_name="$(sed 's/^.*\///g' <<< "${0}")"
-calm_count_max=5
+sniff_secs=10
+calm_count_max=6
 
 ret_pass=0
 ret_warn=1
 ret_fail=2
+
+self_name="$(sed 's/^.*\///g' <<< "${0}")"
 
 
 function main {
@@ -156,12 +158,11 @@ function check_online_passive {
   while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
     src_address_dec_string="$(sed -E 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
     dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
-    debug "src_address_bin_string='${src_address_bin_string}'"
-    debug "dst_address_bin_string='${dst_address_bin_string}'"
     src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"
     dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"
-    debug "2#src_address_bin_string='$((2#$src_address_bin_string))'"
-    debug "2#dst_address_bin_string='$((2#$dst_address_bin_string))'"
+
+    debug "src_address_dec_string='${src_address_dec_string}'"
+    debug "dst_address_dec_string='${dst_address_dec_string}'"
 
     if 
       test    "$((2#$src_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
@@ -173,7 +174,8 @@ function check_online_passive {
       test    "$((2#$dst_address_bin_string))" -lt "$((2#$range_bottom_bin_string))" \
       || test "$((2#$dst_address_bin_string))" -gt "$((2#$range_top_bin_string))"
     then
-      let outbound_traffic=1
+      debug "Outbound traffic detected."
+      outbound_traffic='yes'
     fi
   done < <(
     timeout "${sniff_secs}" \
@@ -333,6 +335,10 @@ function get_range {
 
 function address_dec_to_bin {
   address="${1}"
+  if ! grep -Eq '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' <<< "${address}"; then
+    error "malformed address:  '${address}'"
+    return "${ret_fail}"
+  fi
   read -a octets_dec_string <<< $(awk -F '[ .]' '{print $1" "$2" "$3" "$4}' <<< "${address}")
   octets=()
   read -a octets_bin_string <<< $(
