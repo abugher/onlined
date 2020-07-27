@@ -143,7 +143,8 @@ function check_online_passive {
   fi
   debug "address_and_mask='${address_and_mask}'"
 
-  read range_bottom_dec_string range_top_dec_string <<< $(get_range "${address_and_mask}")
+  # No quotes.
+  read range_bottom_dec_string range_top_dec_string <<< $(get_range ${address_and_mask})
   ret="${?}"
   debug "range_bottom_dec_string='${range_bottom_dec_string}'"
   debug "range_top_dec_string='${range_top_dec_string}'"
