@@ -6,6 +6,9 @@ Depends:
 
   - iproute2
   - ifupdown
+  - tcpdump
+  - wireless-tools
+  - iputils-ping
 
 Assumptions:
 

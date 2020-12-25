@@ -1,7 +1,6 @@
 #!/bin/bash
 
-#wifi_interface=wlan0
-wifi_interface=wlan2
+wifi_interface=wlan0
 skip_interfaces=( lo )
 
 sleep_secs_online=60
@@ -42,10 +41,11 @@ function refresh {
   read -a interfaces <<< $(get_interfaces)
   read -a spec_names <<< $(get_spec_names)
 
-  if ! ifdown "${interfaces[@]}"; then
-    error "Failed to bring down interfaces:  ( ${interfaces[@]} )"
-    return "${ret_fail}"
-  fi
+  for interface in "${interfaces[@]}"; do
+    if ! ifdown "${interface}"; then
+      error "Failed to bring down interface:  '${interfaces}'"
+    fi
+  done
 
   debug "Trying each specified interface."
   for spec_name in "${spec_names[@]}"; do

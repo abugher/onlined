@@ -50,6 +50,12 @@ x Handle failures.
     - When calling a function containing failure handling, which will
       return a false value.
 
+- Handle race condition.  Currently, if traffic is calm for most of the
+  passive check, then a connection is made, we may observe the outbound
+  request and end the sample before the reply is received, resulting in
+  "unanswered outbound traffic".  Listen for inbound only for the last
+  iteration, to prevent this possibility.
+
 - Get control of dhclient output while running ifup.  It doesn't seem to
   redirect.
 
