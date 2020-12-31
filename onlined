@@ -38,6 +38,16 @@ function main {
 
 function refresh {
   output "Refreshing connection."
+
+  for interface in "${interfaces[@]}"; do
+    if ! ifdown "${interface}"; then
+      error "Failed to bring down interface:  '${interfaces}'"
+    fi
+  done
+  if ! ifdown "${wifi_interface}"; then
+    error "Failed to bring down wifi interface:  '${wifi_interfaces}'"
+  fi
+
   read -a interfaces <<< $(get_interfaces)
   read -a spec_names <<< $(get_spec_names)
 
@@ -46,16 +56,13 @@ function refresh {
     debug "  ${spec_name}"
   done
 
-  for interface in "${interfaces[@]}"; do
-    if ! ifdown "${interface}"; then
-      error "Failed to bring down interface:  '${interfaces}'"
-    fi
-  done
-
   debug "Trying each specified interface."
   for spec_name in "${spec_names[@]}"; do
     for interface in "${interfaces[@]}"; do
       if test "${spec_name}" == "${interface}"; then
+        if ! ifdown "${interface}"; then
+          error "Failed to bring down interface:  '${interfaces}'"
+        fi
         try_spec "${spec_name}"
         ret="${?}"
         case "${ret}" in
@@ -81,6 +88,9 @@ function refresh {
   for spec_name in "${spec_names[@]}"; do
     for wifi_name in "${wifi_names[@]}"; do
       if test "${spec_name}" == "${wifi_name}"; then
+        if ! ifdown "${wifi_interface}"; then
+          error "Failed to bring down wifi interface:  '${wifi_interfaces}'"
+        fi
         try_spec "${wifi_interface}=${spec_name}"
         ret="${?}"
         case "${?}" in
