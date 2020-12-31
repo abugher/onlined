@@ -41,6 +41,11 @@ function refresh {
   read -a interfaces <<< $(get_interfaces)
   read -a spec_names <<< $(get_spec_names)
 
+  debug "Specification sets:"
+  for spec_name in "${spec_names[@]}"; do
+    debug "  ${spec_name}"
+  done
+
   for interface in "${interfaces[@]}"; do
     if ! ifdown "${interface}"; then
       error "Failed to bring down interface:  '${interfaces}'"
@@ -66,6 +71,11 @@ function refresh {
   while read wifi_name; do
     wifi_names+=( "${wifi_name}" )
   done < <(get_wifi_names)
+
+  debug "Wireless networks:"
+  for wifi_name in "${wifi_names[@]}"; do
+    debug "  ${wifi_name}"
+  done
 
   debug "Trying specified wireless networks."
   for spec_name in "${spec_names[@]}"; do
@@ -227,6 +237,14 @@ function get_interfaces {
   fi
   interface_list="$(awk '/^[0-9]+: / {print $2}' <<< "${interface_list}")"
   interface_list="$(sed 's/:$//' <<< "${interface_list}")"
+  interface_list=
+  for interface in ${interface_list}; do
+    ip link set "${interface}" up
+    if ! ip link show "${interface}" | grep -q 'NO-CARRIER'; then
+      interface_list="${interface_list} ${interface}"
+    fi
+    ip link set "${interface}" down
+  done
   interface_list="$(grep -Ev "^${skip_interfaces_regex}" <<< "${interface_list}")"
 
   # No quotes.
