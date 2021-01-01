@@ -147,13 +147,13 @@ function check_online_passive {
   debug "Checking online status:  Passive check."
   if ! active_interface="$(get_active_interface)"; then
     error "Failed to identify an active interface."
-    return "${ret_fail}"
+    return "${ret_warn}"
   fi
   debug "active_interface='${active_interface}'"
 
   if ! address_and_mask="$(get_address_and_mask "${active_interface}")"; then
     error "Failed to get address and mask."
-    return "${ret_fail}"
+    return "${ret_warn}"
   fi
   debug "address_and_mask='${address_and_mask}'"
 
@@ -164,7 +164,7 @@ function check_online_passive {
   debug "range_top_dec_string='${range_top_dec_string}'"
   if ! test "${ret}" -eq 0; then
     error "Failed to identify address range of local subnet."
-    return "${ret_fail}"
+    return "${ret_warn}"
   fi
 
   range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"
@@ -205,7 +205,7 @@ function check_online_passive {
 
   if test 'set' == "${outbound_traffic:+set}"; then
     debug "Unanswered outbound traffic detected."
-    return "${ret_fail}"
+    return "${ret_warn}"
   else
     debug "No traffic detected."
     return "${ret_warn}"
