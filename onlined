@@ -188,10 +188,14 @@ function check_online_passive {
     return "${ret_warn}"
   fi
 
-  range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")" || \
-    fail "Failed to dec to bin:  \$range_bottom_dec_string"
-  range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")" || \
-    fail "Failed to dec to bin:  \$range_top_dec_string"
+  if ! range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"; then
+    error "Failed to dec to bin:  \$range_bottom_dec_string"
+    return "${ret_fail}"
+  fi
+  if ! range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")"; then
+    error "Failed to dec to bin:  \$range_top_dec_string"
+    return "${ret_fail}"
+  fi
   debug "2#range_bottom_bin_string='$((2#$range_bottom_bin_string))'"
   debug "2#range_top_bin_string='$((2#$range_top_bin_string))'"
 
@@ -202,9 +206,9 @@ function check_online_passive {
     src_address_dec_string="$(sed -E 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
     dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
     src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")" || \
-      fail "Failed to dec to bin:  \$src_address_dec_string"
+      error "Failed to dec to bin:  \$src_address_dec_string"
     dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")" || \
-      fail "Failed to dec to bin:  \$dst_address_dec_string"
+      error "Failed to dec to bin:  \$dst_address_dec_string"
 
     debug "src_address_dec_string='${src_address_dec_string}'"
     debug "dst_address_dec_string='${dst_address_dec_string}'"
@@ -253,7 +257,7 @@ function check_online_active {
 function get_active_interface {
   if ! route_list="$(ip route)"; then
     error "Failed to list routes."
-    return 1
+    return "${ret_fail}"
   fi
   route_list="$(awk '/default/ {print $5}' <<< "${route_list}")"
   grep . <<< "${route_list}"
@@ -268,7 +272,7 @@ function get_interfaces {
   skip_interfaces_regex="$(sed 's/|$//' <<< "${skip_interfaces_regex}")"
   if ! interface_list="$(ip link)"; then
     error "Failed to list interfaces."
-    return 1
+    return "${ret_fail}"
   fi
   interface_list="$(awk '/^[0-9]+: / {print $2}' <<< "${interface_list}")"
   interface_list="$(sed 's/:$//' <<< "${interface_list}")"
@@ -294,7 +298,7 @@ function get_wifi_names {
 
   if ! wifi_list="$(iwlist "${wifi_interface}" scan)"; then
     error "Failed to scan for wifi names."
-    return 1
+    return "${ret_fail}"
   fi
   # Wifi names can have spaces; leave them on separate lines.
   awk -F '[:"]' '/^ *ESSID:/ {print $3}' <<< "${wifi_list}"
@@ -304,7 +308,7 @@ function get_wifi_names {
 function get_spec_names {
   if ! spec_list="$(cat /etc/network/interfaces{,.d/*})"; then
     error "Failed to read network specification list(s)."
-    return 1
+    return "${ret_fail}"
   fi
   spec_list="$(awk '/iface/ {print $2}' <<< "${spec_list}")"
   # No quotes.
@@ -315,7 +319,7 @@ function get_spec_names {
 function get_address_and_mask {
     if ! address_and_mask="$(ip addr show dev "${1}")"; then
       error "Failed to query address and mask."
-      return 1
+      return "${ret_fail}"
     fi
     awk '/^    inet / {print $2}' <<< "${address_and_mask}" \
     | sed 's/\// /' \
