@@ -45,7 +45,7 @@ function refresh {
     fi
   done
   if ! ifdown "${wifi_interface}"; then
-    error "Failed to bring down wifi interface:  '${wifi_interfaces}'"
+    error "Failed to bring down wifi interface:  '${wifi_interface}'"
   fi
 
   read -a interfaces <<< $(get_interfaces)
@@ -115,11 +115,32 @@ function try_spec {
     output "Successfully brought up network spec:  ${target}"
     return "${ret_pass}"
   fi
+
   output "Failed to bring up network spec:  ${target}"
   if ! ifdown "${target}"; then
     error "Failed to bring down network spec:  ${target}"
     return "${ret_fail}"
   fi
+
+  # Pattern:  ifup obtains and displays an IP address, but then shows a
+  # message that wpa_supplicant failed to start, and then fails.  dhclient is
+  # left running.  (!)  ifdown says the interface is not configured, and
+  # refused to act.  Further ifup invocations create further instances of
+  # dhclient.  That's all pretty carefully observed; more speculatively, the
+  # dhclient instances may interact poorly.  I think it was causing me grief
+  # around address refresh time, once.
+  #
+  # So kill dhclient here.
+  #
+  # It shouldn't be running, because ifup should have made sure it exited.
+  # In order to handle the case when it is, violate the case when dhclient is
+  # running and is none of this script's business.
+  #
+  # wpa_supplicant failing to start seems like a separate problem.  Even if
+  # it fails, this shouldn't happen.
+
+  pkill -x dhclient \
+    || fail "Failed to kill dhclient."
   return "${ret_warn}"
 }
 
@@ -167,8 +188,10 @@ function check_online_passive {
     return "${ret_warn}"
   fi
 
-  range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")"
-  range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")"
+  range_bottom_bin_string="$(address_dec_to_bin "${range_bottom_dec_string}")" || \
+    fail "Failed to dec to bin:  \$range_bottom_dec_string"
+  range_top_bin_string="$(address_dec_to_bin "${range_top_dec_string}")" || \
+    fail "Failed to dec to bin:  \$range_top_dec_string"
   debug "2#range_bottom_bin_string='$((2#$range_bottom_bin_string))'"
   debug "2#range_top_bin_string='$((2#$range_top_bin_string))'"
 
@@ -178,8 +201,10 @@ function check_online_passive {
   while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
     src_address_dec_string="$(sed -E 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
     dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
-    src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"
-    dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"
+    src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")" || \
+      fail "Failed to dec to bin:  \$src_address_dec_string"
+    dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")" || \
+      fail "Failed to dec to bin:  \$dst_address_dec_string"
 
     debug "src_address_dec_string='${src_address_dec_string}'"
     debug "dst_address_dec_string='${dst_address_dec_string}'"
