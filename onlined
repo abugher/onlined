@@ -139,8 +139,10 @@ function try_spec {
   # wpa_supplicant failing to start seems like a separate problem.  Even if
   # it fails, this shouldn't happen.
 
-  pkill -x dhclient \
-    || fail "Failed to kill dhclient."
+  if ! pkill -x dhclient; then
+    error "Failed to kill dhclient."
+    return "${ret_fail}"
+  fi
   return "${ret_warn}"
 }
 
