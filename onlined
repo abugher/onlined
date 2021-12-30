@@ -209,11 +209,11 @@ function check_online_passive {
     dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
     if ! src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"; then
       error "Failed to dec to bin:  \$src_address_dec_string"
-      return "${ret_fail}"
+      continue
     fi
     if ! dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"; then
       error "Failed to dec to bin:  \$dst_address_dec_string"
-      return "${ret_fail}"
+      continue
     fi
 
     debug "src_address_dec_string='${src_address_dec_string}'"
