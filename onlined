@@ -207,10 +207,14 @@ function check_online_passive {
   while read time IP src_address_dot_port arrow dst_address_dot_port garbage; do 
     src_address_dec_string="$(sed -E 's/\.[0-9]*$//' <<< "${src_address_dot_port}")"
     dst_address_dec_string="$(sed -E 's/\.[0-9]*:$//' <<< "${dst_address_dot_port}")"
-    src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")" || \
+    if ! src_address_bin_string="$(address_dec_to_bin "${src_address_dec_string}")"; then
       error "Failed to dec to bin:  \$src_address_dec_string"
-    dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")" || \
+      return "${ret_fail}"
+    fi
+    if ! dst_address_bin_string="$(address_dec_to_bin "${dst_address_dec_string}")"; then
       error "Failed to dec to bin:  \$dst_address_dec_string"
+      return "${ret_fail}"
+    fi
 
     debug "src_address_dec_string='${src_address_dec_string}'"
     debug "dst_address_dec_string='${dst_address_dec_string}'"
