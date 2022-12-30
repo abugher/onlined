@@ -1,6 +1,7 @@
 #!/bin/bash
 
 wifi_interface=wlan0
+#wifi_interface=wlx00c0ca54f48f
 skip_interfaces=( lo )
 
 sleep_secs_online=60
