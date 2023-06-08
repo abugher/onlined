@@ -49,13 +49,22 @@ function refresh {
     error "Failed to bring down wifi interface:  '${wifi_interface}'"
   fi
 
-  read -a interfaces <<< $(get_interfaces)
-  read -a spec_names <<< $(get_spec_names)
+  interfaces=( $(get_interfaces) )
+  spec_names=( $(get_spec_names) )
+  declare -A spec_essids
+  while read spec_name; do
+    read spec_essid
+    spec_essids["${spec_name}"]="${spec_essid}"
+  done < <(get_spec_essids)
 
   debug "Specification sets:"
   for spec_name in "${spec_names[@]}"; do
-    debug "  ${spec_name}"
+    debug "  ifupdown name: ${spec_name}"
+    debug "  wireless name: ${spec_essids[$spec_name]}"
   done
+
+  debug "Spec names:  ${!spec_essids[@]}"
+  debug "Spec essids:  ${spec_essids[@]}"
 
   debug "Trying each specified interface."
   for spec_name in "${spec_names[@]}"; do
@@ -88,7 +97,10 @@ function refresh {
   debug "Trying specified wireless networks."
   for spec_name in "${spec_names[@]}"; do
     for wifi_name in "${wifi_names[@]}"; do
-      if test "${spec_name}" == "${wifi_name}"; then
+      if
+        test 'set' == "${spec_essids[$spec_name]:+set}" \
+        && test "${spec_essids[$spec_name]}" == "${wifi_name}"
+      then
         if ! ifdown "${wifi_interface}"; then
           error "Failed to bring down wifi interface:  '${wifi_interfaces}'"
         fi
@@ -312,14 +324,31 @@ function get_wifi_names {
 }
 
 
-function get_spec_names {
-  if ! spec_list="$(cat /etc/network/interfaces{,.d/*})"; then
+function get_spec_list {
+  if ! cat /etc/network/interfaces{,.d/*} | grep -v '^[[:space:]]*#' ; then
     error "Failed to read network specification list(s)."
     return "${ret_fail}"
   fi
-  spec_list="$(awk '/iface/ {print $2}' <<< "${spec_list}")"
-  # No quotes.
-  echo ${spec_list}
+}
+
+
+function get_spec_names {
+  get_spec_list \
+    | awk '/\s*iface/ {print $2}'
+}
+
+
+function get_spec_essids {
+  unset spec_name
+  get_spec_list | while read line; do
+    if grep -q '^[[:space:]]*iface' <<< "${line}"; then
+      spec_name="$(awk '{print $2}' <<< "${line}")"
+    elif grep -qE '^[[:space:]]*[a-z]*\-essid' <<< "${line}"; then
+      spec_essid="$(sed -E 's/^\s*[a-z]*-essid\s*//' <<< "${line}")"
+      printf '%s\n' "${spec_name}"
+      printf '%s\n' "${spec_essid}"
+    fi
+  done
 }
 
 
