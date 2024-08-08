@@ -316,8 +316,13 @@ function get_wifi_names {
   fi
 
   if ! wifi_list="$(iwlist "${wifi_interface}" scan)"; then
-    error "Failed to scan for wifi names."
-    return "${ret_fail}"
+    warn "Failed to scan for wifi names; bouncing interface."
+    ip link set "${wifi_interface}" down
+    ip link set "${wifi_interface}" up
+    if ! wifi_list="$(iwlist "${wifi_interface}" scan)"; then
+      error "Failed to scan for wifi names."
+      return "${ret_fail}"
+    fi
   fi
   # Wifi names can have spaces; leave them on separate lines.
   awk -F '[:"]' '/^ *ESSID:/ {print $3}' <<< "${wifi_list}"
