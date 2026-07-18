@@ -40,14 +40,9 @@ function main {
 function refresh {
   output "Refreshing connection."
 
-  for interface in "${interfaces[@]}"; do
-    if ! ifdown "${interface}"; then
-      error "Failed to bring down interface:  '${interface}'"
-    fi
+  for interface in "${interfaces[@]}" "${wifi_interface}"; do
+    down "${interface}"
   done
-  if ! ifdown "${wifi_interface}"; then
-    error "Failed to bring down wifi interface:  '${wifi_interface}'"
-  fi
 
   interfaces=( $(get_interfaces) )
   spec_names=( $(get_spec_names) )
@@ -70,9 +65,7 @@ function refresh {
   for spec_name in "${spec_names[@]}"; do
     for interface in "${interfaces[@]}"; do
       if test "${spec_name}" == "${interface}"; then
-        if ! ifdown "${interface}"; then
-          error "Failed to bring down interface:  '${interfaces}'"
-        fi
+        down "${interface}"
         try_spec "${spec_name}"
         ret="${?}"
         case "${ret}" in
@@ -101,9 +94,7 @@ function refresh {
         test 'set' == "${spec_essids[$spec_name]:+set}" \
         && test "${spec_essids[$spec_name]}" == "${wifi_name}"
       then
-        if ! ifdown "${wifi_interface}"; then
-          error "Failed to bring down wifi interface:  '${wifi_interface}'"
-        fi
+        down "${wifi_interface}"
         try_spec "${wifi_interface}=${spec_name}"
         ret="${?}"
         case "${?}" in
@@ -117,6 +108,17 @@ function refresh {
 
   output "Failed to refresh connection."
   return "${ret_fail}"
+}
+
+
+function down {
+  local interface="${1}"
+  if ! ifdown "${interface}"; then
+    error "Failed to bring down interface:  '${interface}'"
+  fi
+  if ! ip link set "${interface}" down; then
+    error "Failed to set link down:  '${interface}'"
+  fi
 }
 
 
