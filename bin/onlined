@@ -137,28 +137,12 @@ function try_spec {
     return "${ret_fail}"
   fi
 
-  # Pattern:  ifup obtains and displays an IP address, but then shows a
-  # message that wpa_supplicant failed to start, and then fails.  dhclient is
-  # left running.  (!)  ifdown says the interface is not configured, and
-  # refused to act.  Further ifup invocations create further instances of
-  # dhclient.  That's all pretty carefully observed; more speculatively, the
-  # dhclient instances may interact poorly.  I think it was causing me grief
-  # around address refresh time, once.
-  #
-  # So kill dhclient here.
-  #
-  # It shouldn't be running, because ifup should have made sure it exited.
-  # In order to handle the case when it is, violate the case when dhclient is
-  # running and is none of this script's business.
-  #
-  # wpa_supplicant failing to start seems like a separate problem.  Even if
-  # it fails, this shouldn't happen.
-
-  if ! pkill -x dhclient; then
-    error "Failed to kill dhclient."
-    return "${ret_fail}"
-  fi
-  return "${ret_warn}"
+  # See README.md section "dhclient pile up".
+  #if ! pkill -x dhclient; then
+  #  error "Failed to kill dhclient."
+  #  return "${ret_fail}"
+  #fi
+  #return "${ret_warn}"
 }
 
 
