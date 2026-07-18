@@ -42,7 +42,7 @@ function refresh {
 
   for interface in "${interfaces[@]}"; do
     if ! ifdown "${interface}"; then
-      error "Failed to bring down interface:  '${interfaces}'"
+      error "Failed to bring down interface:  '${interface}'"
     fi
   done
   if ! ifdown "${wifi_interface}"; then
