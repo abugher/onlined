@@ -123,15 +123,15 @@ function refresh {
 function try_spec {
   target="${1}"
   sleep "${sleep_secs_next}"
-  output "Trying network spec:  ${target}"
+  output "Trying network spec:  '${target}'"
   if ifup "${target}" && check_online; then
-    output "Successfully brought up network spec:  ${target}"
+    output "Successfully brought up network spec:  '${target}'"
     return "${ret_pass}"
   fi
 
-  output "Failed to bring up network spec:  ${target}"
+  output "Failed to bring up network spec:  '${target}'"
   if ! ifdown "${target}"; then
-    error "Failed to bring down network spec:  ${target}"
+    error "Failed to bring down network spec:  '${target}'"
     return "${ret_fail}"
   fi
 
