@@ -102,7 +102,7 @@ function refresh {
         && test "${spec_essids[$spec_name]}" == "${wifi_name}"
       then
         if ! ifdown "${wifi_interface}"; then
-          error "Failed to bring down wifi interface:  '${wifi_interfaces}'"
+          error "Failed to bring down wifi interface:  '${wifi_interface}'"
         fi
         try_spec "${wifi_interface}=${spec_name}"
         ret="${?}"
